@@ -1,0 +1,1 @@
+"keyscan.c" OPTIMIZE (8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\keyscan.lst) OBJECT(.\Objects\keyscan.obj)

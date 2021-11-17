@@ -1,0 +1,358 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              12/25/2020 22:21:38 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: E:\Keil\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.ls
+                    -t) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          /*************************************************************
+   2          *项目名称: 智能门锁
+   3          *项目平台：Keil5 + 普中科技51单片机
+   4          *项目时间：2020-12-21
+   5          *作者：云嘉轩
+   6          **************************************************************/
+   7          
+   8          /*
+   9          项目要求：见PDF文件
+  10          因为引脚冲突，直流电机模仿继电器取消。改为P2^0引脚开关
+  11          */
+  12          
+  13          #include "reg52.h"
+  14          #include "intrins.h"
+  15          #include "at24c02.h"
+  16          //按键
+  17          sbit LSA=P2^2;
+  18          sbit LSB=P2^3;
+  19          sbit LSC=P2^4;
+  20          //指示灯
+  21          sbit led1=P2^5;
+  22          sbit led7=P2^6;
+  23          sbit led8=P2^7;
+  24          //直流电机
+  25          sbit moto=P2^0;
+  26          //标志位声明
+  27          bit flag;
+  28          u8 PassFlag;    //密码标志
+  29          u8 PassPriFlag; //密码自加标志
+  30          u8 DoLapFlag;   //门或灯状态标志
+  31          u8 PrintFlag;   //输入结束标志
+  32          u8 PassRE;              //密码正确错误标志
+  33          u8 ModFlag;             //修改密码标志
+  34          u8 ModEntFlag;  //进入修改密码标志
+  35          u8 tt,time;
+  36          u8 UserPassword[6];             //用户输入的密码数组
+  37          u8 AdminPassword[6];    //系统保存的密码数组
+  38          //u8 AdminPassword[6]={8,8,8,8,8,8};
+  39          u8 smgduan[]={0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,
+  40                                             0x7f,0x6f,0x77,0x7c,0x39,0x5e,0x79,0x71,0x73,0x37};
+  41          u8 DisPlay[8];          //数码管显示数组
+  42          #define GPIO_KEY P1
+  43          u8 KeyVal;
+  44          void Delay(u16 i)     //11.0592MHz  1ms
+  45          {
+  46   1              while(i--){
+  47   2                      unsigned char i, j;
+  48   2      
+  49   2                      _nop_();
+  50   2                      i = 2;
+  51   2                      j = 199;
+  52   2                      do
+  53   2                      {
+  54   3                              while (--j);
+C51 COMPILER V9.57.0.0   MAIN                                                              12/25/2020 22:21:38 PAGE 2   
+
+  55   3                      } while (--i);
+  56   2              }
+  57   1      } 
+  58          //定时器0初始化
+  59          void Time0Init(){
+  60   1              TMOD=0x01;
+  61   1              TH0=(65536-9174)/256;   //10ms
+  62   1              TL0=(65536-9174)%256;
+  63   1              EA=1;
+  64   1              ET0=1;
+  65   1              TR0=0;
+  66   1      }
+  67          //数码管显示
+  68          void Showsmg(){
+  69   1              u8 i;
+  70   1              for(i=0;i<8;i++){
+  71   2                      switch(i){
+  72   3                              case 0: LSA=0;LSB=0;LSC=0;break;
+  73   3                              case 1: LSA=1;LSB=0;LSC=0;break;
+  74   3                              case 2: LSA=0;LSB=1;LSC=0;break;
+  75   3                              case 3: LSA=1;LSB=1;LSC=0;break;
+  76   3                              case 4: LSA=0;LSB=0;LSC=1;break;
+  77   3                              case 5: LSA=1;LSB=0;LSC=1;break;
+  78   3                              case 6: LSA=0;LSB=1;LSC=1;break;
+  79   3                              case 7: LSA=1;LSB=1;LSC=1;break;
+  80   3                      }
+  81   2                      P0=DisPlay[i];
+  82   2                      Delay(1);
+  83   2                      P0=0x00;
+  84   2              }
+  85   1      }
+  86          //按键检测
+  87          void KeyDown(){
+  88   1              char a=0;
+  89   1              GPIO_KEY=0x0f;
+  90   1              if(GPIO_KEY!=0x0f){
+  91   2                      Delay(10);
+  92   2                      if(GPIO_KEY!=0x0f){
+  93   3                              GPIO_KEY=0x0f;
+  94   3                              switch(GPIO_KEY){
+  95   4                                      case 0x07:KeyVal=0;flag=1;break;
+  96   4                                      case 0x0b:KeyVal=1;flag=1;break;
+  97   4                                      case 0x0d:KeyVal=2;flag=1;break;
+  98   4                                      case 0x0e:KeyVal=3;flag=1;break;
+  99   4                              }
+ 100   3                              GPIO_KEY=0xf0;
+ 101   3                              switch(GPIO_KEY){
+ 102   4                                      case 0x70:KeyVal=KeyVal;break;
+ 103   4                                      case 0xb0:KeyVal=KeyVal+4;break;
+ 104   4                                      case 0xd0:KeyVal=KeyVal+8;break;
+ 105   4                                      case 0xe0:KeyVal=KeyVal+12;break;
+ 106   4                              }
+ 107   3                      }while((a<150)&&(GPIO_KEY!=0xf0)){
+ 108   3                              Delay(1);
+ 109   3                              a++;
+ 110   3                      }
+ 111   2              }
+ 112   1      }
+ 113          
+ 114          //数字按键处理
+ 115          void Numpross(u8 dat){
+ 116   1              u8 i,j;
+C51 COMPILER V9.57.0.0   MAIN                                                              12/25/2020 22:21:38 PAGE 3   
+
+ 117   1              KeyVal=0xff;
+ 118   1              if(PassFlag==1){
+ 119   2                      UserPassword[PassPriFlag]=dat;
+ 120   2                      for(i=PassPriFlag;i>0;i--){
+ 121   3                              DisPlay[i]=DisPlay[i-1];
+ 122   3                      }
+ 123   2                      DisPlay[i]=smgduan[dat];
+ 124   2                      PassPriFlag++;
+ 125   2                      if(PassPriFlag==6){
+ 126   3                              PassPriFlag=0;
+ 127   3                              PassFlag=0;
+ 128   3                              PrintFlag=1;
+ 129   3                      }
+ 130   2              }
+ 131   1              if(ModFlag==1){
+ 132   2                      AdminPassword[PassPriFlag]=dat;
+ 133   2                      for(i=PassPriFlag;i>0;i--){
+ 134   3                              DisPlay[i]=DisPlay[i-1];
+ 135   3                      }
+ 136   2                      DisPlay[i]=smgduan[dat];
+ 137   2                      PassPriFlag++;
+ 138   2                      if(PassPriFlag==6){
+ 139   3                              PassPriFlag=0;
+ 140   3                              ModFlag=0;
+ 141   3                              //写入AT24C02
+ 142   3                              for(j=0;j<6;j++)
+ 143   3                                      Write(j,AdminPassword[j]);
+ 144   3                              DoLapFlag=1;    //重新计算时间
+ 145   3                              TR0=1;
+ 146   3                              moto=0;                 //开启电机
+ 147   3                              for(j=0;j<8;j++)
+ 148   3                                      DisPlay[j]=0x00;
+ 149   3                              led8=1;                 //关闭修改密码指示灯
+ 150   3                      }
+ 151   2              }
+ 152   1      }
+ 153          //输入功能处理
+ 154          void Pripross(){
+ 155   1              u8 j;
+ 156   1              KeyVal=0xff;
+ 157   1              TR0=0;                  //关闭定时器
+ 158   1              time=0;
+ 159   1              DisPlay[7]=0x40;        // 显示“-”
+ 160   1              for(j=0;j<7;j++)
+ 161   1                      DisPlay[j]=0x00;
+ 162   1              PassFlag=1;     //允许输入密码
+ 163   1              led7=0;
+ 164   1              ModFlag=0;      //不允许修改密码
+ 165   1              led8=1;
+ 166   1              
+ 167   1      }
+ 168          //清除功能处理
+ 169          void Delpross(){
+ 170   1              u8 k;
+ 171   1              KeyVal=0xff;
+ 172   1              if(PassFlag==1){                //输入密码模式下允许清除
+ 173   2                      //重新恢复输入密码状态
+ 174   2                      Pripross();
+ 175   2                      PassPriFlag=0;  //重新统计密码位数
+ 176   2              }
+ 177   1              if(ModFlag==1){         //修改密码模式下允许清除
+ 178   2                      for(k=0;k<=6;k++){
+C51 COMPILER V9.57.0.0   MAIN                                                              12/25/2020 22:21:38 PAGE 4   
+
+ 179   3                              AdminPassword[k]=0;
+ 180   3                              DisPlay[k]=0x00;
+ 181   3                      }
+ 182   2                      PassPriFlag=0;  //重新统计密码位数
+ 183   2                      DisPlay[7]=smgduan[12];
+ 184   2              }
+ 185   1      }
+ 186          //修改功能处理
+ 187          void Modpross(){
+ 188   1              u8 j;
+ 189   1              KeyVal=0xff;
+ 190   1              if((PassRE==1)){
+ 191   2                      PassRE=0;
+ 192   2                      DisPlay[7]=smgduan[12];
+ 193   2                      for(j=0;j<7;j++)
+ 194   2                              DisPlay[j]=0x00;
+ 195   2                      ModFlag=1;              //允许修改密码
+ 196   2                      PassFlag=0;             //不允许输入密码
+ 197   2                      DoLapFlag=0;    
+ 198   2                      TR0=0;                  //关闭定时器
+ 199   2                      time=0;
+ 200   2              }
+ 201   1      }
+ 202          //初始化函数
+ 203          void Init(){
+ 204   1              u8 j;
+ 205   1              //数码管全灭
+ 206   1              for(j=0;j<8;j++)
+ 207   1                      DisPlay[j]=0x00;
+ 208   1              //指示灯全灭
+ 209   1              led1=1;
+ 210   1              led7=1;
+ 211   1              led8=1;
+ 212   1              //电机关闭
+ 213   1              moto=1;
+ 214   1              //参数初始化
+ 215   1              PassPriFlag=0;
+ 216   1              DoLapFlag=0;
+ 217   1              PassFlag=0;     
+ 218   1              ModFlag=0;      
+ 219   1              //定时器0初始化
+ 220   1              Time0Init();
+ 221   1              //AT24C02初始化
+ 222   1              At24c02Init();
+ 223   1      }
+ 224          //按键处理
+ 225          void Keypross(){
+ 226   1              if(flag==1){
+ 227   2                      switch(KeyVal){
+ 228   3                              case 0:Numpross(0);break;
+ 229   3                              case 1:Numpross(1);break;
+ 230   3                              case 2:Numpross(2);break;
+ 231   3                              case 3:Numpross(3);break;
+ 232   3                              case 4:Numpross(4);break;
+ 233   3                              case 5:Numpross(5);break;
+ 234   3                              case 6:Numpross(6);break;
+ 235   3                              case 7:Numpross(7);break;
+ 236   3                              case 8:Numpross(8);break;
+ 237   3                              case 9:Numpross(9);break;
+ 238   3                              case 10:break;
+ 239   3                              case 11:break;
+ 240   3                              case 12:break;
+C51 COMPILER V9.57.0.0   MAIN                                                              12/25/2020 22:21:38 PAGE 5   
+
+ 241   3                              case 13:Delpross();break;
+ 242   3                              case 14:Modpross();break;
+ 243   3                              case 15:Pripross();break;
+ 244   3                      }
+ 245   2              }
+ 246   1      }
+ 247          void main(){
+ 248   1              u8 i;
+ 249   1              Init();
+ 250   1      //      for(i=0;i<6;i++)
+ 251   1      //              Write(i,AdminPassword[i]);
+ 252   1              
+ 253   1              //读取最新密码
+ 254   1              for(i=0;i<6;i++){
+ 255   2                      AdminPassword[i]=Read(i);
+ 256   2      //              DisPlay[i]=smgduan[AdminPassword[i]];
+ 257   2              }
+ 258   1              while(1){
+ 259   2                      KeyDown();
+ 260   2                      Keypross();
+ 261   2                      Showsmg();
+ 262   2                      flag=0;         //检测是否有按键按下
+ 263   2                      if(PrintFlag==1){               //输入结束开始判断密码是否正确
+ 264   3                              PrintFlag=0;
+ 265   3                              for(i=0;i<6;i++){
+ 266   4                                      if(UserPassword[i]==AdminPassword[i]){
+ 267   5                                              PassRE=1;
+ 268   5                                      }
+ 269   4                                      else{
+ 270   5                                              PassRE=2;
+ 271   5                                              break;  //密码错误退出
+ 272   5                                      }
+ 273   4                              }
+ 274   3                              TR0=1;
+ 275   3                              if(PassRE==1){
+ 276   4                                      moto=0;         //开启电机
+ 277   4                                      DisPlay[7]=smgduan[0];          //第一位显示O
+ 278   4                                      DisPlay[6]=0x00;
+ 279   4                                      DisPlay[5]=0x00;
+ 280   4                                      DisPlay[4]=0x00;
+ 281   4                                      DisPlay[3]=smgduan[0];          //显示O
+ 282   4                                      DisPlay[2]=smgduan[16];         //显示P
+ 283   4                                      DisPlay[1]=smgduan[14];         //显示E
+ 284   4                                      DisPlay[0]=smgduan[17];         //显示N
+ 285   4                                      DoLapFlag=1;
+ 286   4                              }
+ 287   3                              if(PassRE==2){
+ 288   4                                      led1=0;         //L1指示灯亮
+ 289   4                                      DoLapFlag=2;
+ 290   4                              }
+ 291   3                      }       
+ 292   2      
+ 293   2                      if(DoLapFlag==1){
+ 294   3                              if(time==5){
+ 295   4                                      if(flag==0){
+ 296   5                                              time=0;
+ 297   5                                              TR0=0;
+ 298   5                                              Init();         //进入初始化状态
+ 299   5                                      }
+ 300   4                                      else{
+ 301   5                                              flag=0;         //重新检测按键
+ 302   5                                              time=0;
+C51 COMPILER V9.57.0.0   MAIN                                                              12/25/2020 22:21:38 PAGE 6   
+
+ 303   5                                      }
+ 304   4                              }
+ 305   3                      }
+ 306   2                      if(DoLapFlag==2){
+ 307   3                              if(time==5){
+ 308   4                                      time=0;
+ 309   4                                      TR0=0;
+ 310   4                                      led1=1;
+ 311   4                                      Init();         //进入初始化状态
+ 312   4                              }
+ 313   3                      }
+ 314   2              }
+ 315   1      }
+ 316          void Time0() interrupt 1{
+ 317   1              TH0=(65536-9174)/256;   //10ms
+ 318   1              TL0=(65536-9174)%256;
+ 319   1              tt++;
+ 320   1              if(tt==100){
+ 321   2                      tt=0;
+ 322   2                      time++;
+ 323   2              }
+ 324   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    955    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     48       6
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =      1    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
