@@ -1,0 +1,297 @@
+C51 COMPILER V9.57.0.0   MAIN                                                              11/22/2020 16:04:02 PAGE 1   
+
+
+C51 COMPILER V9.57.0.0, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: E:\Keil\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.ls
+                    -t) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          /*************************************************************
+   2          *项目名称：倒计时数字钟（矩阵按键可调）
+   3          *项目平台：Keil5 + 普中科技51单片机
+   4          *项目时间：2020-11-18
+   5          *作者：云嘉轩
+   6          **************************************************************/
+   7          
+   8          #include "smg.h"
+   9          
+  10          void main(){
+  11   1              Init();
+  12   1              while(1){
+  13   2                      KeyDown();
+  14   2                      Keypross();
+  15   2                      Datapross();
+  16   2                      if(flag==1)
+  17   2                              Flash(flag1);
+  18   2                      else
+  19   2                              Showsmg();
+  20   2              }
+  21   1      }
+  22          
+  23          //数码管显示函数
+  24          void Showsmg(){      
+  25   1              u8 i;
+  26   1              for(i=0;i<8;i++)
+  27   1              {
+  28   2                 switch(7-i)    //位选
+  29   2                 {
+  30   3                        case 0: LSA=0;LSB=0;LSC=0;break;
+  31   3                        case 1: LSA=1;LSB=0;LSC=0;break;
+  32   3                        case 2: LSA=0;LSB=1;LSC=0;break;
+  33   3                        case 3: LSA=1;LSB=1;LSC=0;break;
+  34   3                        case 4: LSA=0;LSB=0;LSC=1;break;
+  35   3                        case 5: LSA=1;LSB=0;LSC=1;break;
+  36   3                        case 6: LSA=0;LSB=1;LSC=1;break;
+  37   3                        case 7: LSA=1;LSB=1;LSC=1;break;
+  38   3                 }
+  39   2                P0=Display[i];
+  40   2                Delay(1);
+  41   2                P0=0x00;
+  42   2              }
+  43   1      }
+  44          //延时函数
+  45          void Delay(u16 i)   //11.0592 1ms
+  46          {
+  47   1              while(i--){
+  48   2                      unsigned char i, j;
+  49   2      
+  50   2                      _nop_();
+  51   2                      i = 2;
+  52   2                      j = 199;
+  53   2                      do
+  54   2                      {
+C51 COMPILER V9.57.0.0   MAIN                                                              11/22/2020 16:04:02 PAGE 2   
+
+  55   3                              while (--j);
+  56   3                      } while (--i);
+  57   2              }
+  58   1      } 
+  59          //初始化函数
+  60          void Init(){
+  61   1              //参数初始化
+  62   1              hour=0;
+  63   1              minute=0;
+  64   1              second=0;
+  65   1              t0=0;
+  66   1              flag=0;
+  67   1              flag1=0;
+  68   1              flag2=0;
+  69   1              //定时器0初始化
+  70   1              TMOD=0x01;
+  71   1              TH0=(65536-9174)/256;   //10ms
+  72   1              TL0=(65536-9174)%256;
+  73   1              EA=1;
+  74   1              ET0=1;
+  75   1              TR0=0;
+  76   1      }
+  77          //按键检测
+  78          void KeyDown(){
+  79   1              char a=0;
+  80   1              GPIO_KEY=0x0f;
+  81   1              if(GPIO_KEY!=0x0f){
+  82   2                      Delay(10);
+  83   2                      if(GPIO_KEY!=0x0f){
+  84   3                              GPIO_KEY=0x0f;
+  85   3                              switch(GPIO_KEY){
+  86   4                                      case 0x07 : KeyVal=0;flag3=1;break;
+  87   4                                      case 0x0b : KeyVal=1;flag3=1;break;
+  88   4                                      case 0x0d : KeyVal=2;flag3=1;break;
+  89   4                                      case 0x0e : KeyVal=3;flag3=1;break;
+  90   4                              }
+  91   3                              GPIO_KEY=0xf0;
+  92   3                              switch(GPIO_KEY){
+  93   4                                      case 0x70 : KeyVal=KeyVal;break;
+  94   4                                      case 0xb0 : KeyVal=KeyVal+4;break;
+  95   4                                      case 0xd0 : KeyVal=KeyVal+8;break;
+  96   4                                      case 0xe0 : KeyVal=KeyVal+12;break;
+  97   4                              }
+  98   3                      }
+  99   2                      while((a<150) && (GPIO_KEY!=0xf0)){
+ 100   3                              Delay(1);
+ 101   3                              a++;
+ 102   3                      }
+ 103   2              }
+ 104   1      }
+ 105          //按键处理
+ 106          void Keypross(){
+ 107   1              if(flag3==1){
+ 108   2                      flag3=0;
+ 109   2                      switch(KeyVal){
+ 110   3                              case 0:Numpross(7);break;
+ 111   3                              case 1:Numpross(8);break;
+ 112   3                              case 2:Numpross(9);break;
+ 113   3                              case 3:Uppross();break;
+ 114   3                              case 4:Numpross(4);break;
+ 115   3                              case 5:Numpross(5);break;
+ 116   3                              case 6:Numpross(6);break;
+C51 COMPILER V9.57.0.0   MAIN                                                              11/22/2020 16:04:02 PAGE 3   
+
+ 117   3                              case 7:Downpross();break;
+ 118   3                              case 8:Numpross(1);break;
+ 119   3                              case 9:Numpross(2);break;
+ 120   3                              case 10:Numpross(3);break;
+ 121   3                              case 11:Funcpross();break;
+ 122   3                              case 12:Numpross(0);break;
+ 123   3                              case 13:break;
+ 124   3                              case 14:Backpross();break;
+ 125   3                              case 15:Enterpross();break;
+ 126   3                              
+ 127   3                      }
+ 128   2              }
+ 129   1      }
+ 130          //数据处理
+ 131          void Datapross(){
+ 132   1              if(flag2==1){
+ 133   2                      flag2=0;
+ 134   2                      second--;
+ 135   2                      if(second>59){
+ 136   3                              if(minute==0){
+ 137   4                                      if(hour==23){
+ 138   5                                              second=0;
+ 139   5                                              minute=0;
+ 140   5                                              hour=0;
+ 141   5                                              TR0=0;
+ 142   5                                              return;
+ 143   5                                      }
+ 144   4                                      else{
+ 145   5                                              hour--;
+ 146   5                                              minute=59;
+ 147   5                                              second=59;
+ 148   5                                      }
+ 149   4                              }
+ 150   3                              else{
+ 151   4                                      minute--;
+ 152   4                                      second=59;
+ 153   4                              }       
+ 154   3                      }       
+ 155   2              }
+ 156   1              Display[0]=smgduan[hour/10];
+ 157   1              Display[1]=smgduan[hour%10];
+ 158   1              Display[2]=0x40;
+ 159   1              Display[3]=smgduan[minute/10];
+ 160   1              Display[4]=smgduan[minute%10];
+ 161   1              Display[5]=0x40;
+ 162   1              Display[6]=smgduan[second/10];
+ 163   1              Display[7]=smgduan[second%10];
+ 164   1      }
+ 165          //按键数字处理
+ 166          void Numpross(u8 dat){
+ 167   1              u8 tp;
+ 168   1              if(flag==1){
+ 169   2                      switch(flag1){
+ 170   3                              case 0:tp=hour%10;hour=tp+dat*10;break;
+ 171   3                              case 1:tp=hour/10;hour=tp*10+dat;break;
+ 172   3                              case 3:tp=minute%10;minute=tp+dat*10;break;
+ 173   3                              case 4:tp=minute/10;minute=tp*10+dat;break;
+ 174   3                              case 6:tp=second%10;second=tp+dat*10;break;
+ 175   3                              case 7:tp=second/10;second=tp*10+dat;break;
+ 176   3                      }
+ 177   2              }
+ 178   1      }
+C51 COMPILER V9.57.0.0   MAIN                                                              11/22/2020 16:04:02 PAGE 4   
+
+ 179          //Up功能处理
+ 180          void Uppross(){
+ 181   1              if(flag==1){
+ 182   2                      flag1++;
+ 183   2                      if(flag1>7){
+ 184   3                              flag1=0;
+ 185   3                      }
+ 186   2                      if((flag1==5)||(flag1==2)){
+ 187   3                              flag1++;
+ 188   3                      }
+ 189   2              }
+ 190   1      }
+ 191          //Down功能处理
+ 192          void Downpross(){
+ 193   1              if(flag==1){
+ 194   2                      flag1--;
+ 195   2                      if(flag1<0)
+ 196   2                              flag1=7;
+ 197   2                      if((flag1==5)||(flag1==2)){
+ 198   3                              flag1--;
+ 199   3                      }
+ 200   2              }
+ 201   1      }
+ 202          //Func功能处理
+ 203          void Funcpross(){
+ 204   1              TR0=0;  //停止计时
+ 205   1              flag=1; //允许设置时间
+ 206   1      }
+ 207          //Enter功能处理
+ 208          void Enterpross(){
+ 209   1              flag=0;         //清零，不允许设置时间
+ 210   1              flag1=0;
+ 211   1              if(hour>23)
+ 212   1                      hour=23;
+ 213   1              if(minute>59)
+ 214   1                      minute=59;
+ 215   1              if(second>59)
+ 216   1                      second=59;
+ 217   1              TR0=1;          //开始计时
+ 218   1      }
+ 219          //Back功能处理
+ 220          void Backpross(){
+ 221   1      //暂无功能
+ 222   1      }
+ 223          //某一位数码管闪烁
+ 224          void Flash(unsigned char t)                             
+ 225          {       
+ 226   1              unsigned char i;
+ 227   1              num%=50;
+ 228   1              for(i=0;i<8;i++)
+ 229   1              {
+ 230   2                      switch(7-i)       //位选
+ 231   2                 {
+ 232   3                        case 0: LSA=0;LSB=0;LSC=0;break;
+ 233   3                        case 1: LSA=1;LSB=0;LSC=0;break;
+ 234   3                        case 2: LSA=0;LSB=1;LSC=0;break;
+ 235   3                        case 3: LSA=1;LSB=1;LSC=0;break;
+ 236   3                        case 4: LSA=0;LSB=0;LSC=1;break;
+ 237   3                        case 5: LSA=1;LSB=0;LSC=1;break;
+ 238   3                        case 6: LSA=0;LSB=1;LSC=1;break;
+ 239   3                        case 7: LSA=1;LSB=1;LSC=1;break;
+ 240   3                 }
+C51 COMPILER V9.57.0.0   MAIN                                                              11/22/2020 16:04:02 PAGE 5   
+
+ 241   2                      if((i==t)&&(num<25)){
+ 242   3                              P0=0x00;
+ 243   3                              Delay(1);
+ 244   3                              P0=0x00;
+ 245   3      //                      continue;
+ 246   3                      }
+ 247   2                      else
+ 248   2                      {
+ 249   3                              P0=Display[i];
+ 250   3                              Delay(1);
+ 251   3                              P0=0x00;
+ 252   3                              
+ 253   3                      }
+ 254   2              }
+ 255   1              num++;
+ 256   1      }
+ 257          void Timer0() interrupt 1{
+ 258   1              TH0=(65536-9174)/256;   //重置
+ 259   1              TL0=(65536-9174)%256;
+ 260   1              t0++;
+ 261   1              if(t0==100){
+ 262   2                      t0=0;
+ 263   2                      flag2=1;
+ 264   2              }
+ 265   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1192    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     31       4
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
